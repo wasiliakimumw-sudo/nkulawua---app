@@ -1,0 +1,190 @@
+{% extends "accounting_app/base.html" %}
+{% block title %}User Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    .perm-badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        margin: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>User Management</h4>
+    <div class="d-flex gap-2">
+        <a href="{% url 'login_sessions' %}" class="btn btn-info"><i class="bi bi-clock-history"></i> Login Sessions</a>
+        <a href="{% url 'user_create' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Add User</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Permissions</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr class="{% if not u.is_active %}table-secondary{% endif %}">
+                    <td>
+                        {{ u.username }}
+                        {% if u.pk == request.user.pk %}
+                            <span class="badge bg-primary">You</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td>
+                        {% if u.userprofile.role == 'admin' %}
+                            <span class="badge bg-danger">Administrator</span>
+                        {% elif u.userprofile.role == 'manager' %}
+                            <span class="badge bg-warning text-dark">Manager</span>
+                        {% elif u.userprofile.role == 'accountant' %}
+                            <span class="badge bg-primary">Accountant</span>
+                        {% elif u.userprofile.role == 'custom' %}
+                            <span class="badge bg-info">Custom</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Viewer</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.userprofile.role == 'admin' %}
+                            <span class="badge bg-success perm-badge">Full Access</span>
+                        {% elif u.userprofile.role == 'custom' or u.userprofile.can_edit_beneficiaries or u.userprofile.can_edit_invoices or u.userprofile.can_edit_payments %}
+                            {% if u.userprofile.can_access_dashboard %}<span class="badge bg-info perm-badge">Dashboard</span>{% endif %}
+                            {% if u.userprofile.can_view_beneficiaries %}<span class="badge bg-secondary perm-badge">View Beneficiaries</span>{% endif %}
+                            {% if u.userprofile.can_edit_beneficiaries %}<span class="badge bg-primary perm-badge">Edit Beneficiaries</span>{% endif %}
+                            {% if u.userprofile.can_delete_beneficiaries %}<span class="badge bg-danger perm-badge">Delete Beneficiaries</span>{% endif %}
+                            {% if u.userprofile.can_view_invoices %}<span class="badge bg-secondary perm-badge">View Invoices</span>{% endif %}
+                            {% if u.userprofile.can_edit_invoices %}<span class="badge bg-primary perm-badge">Edit Invoices</span>{% endif %}
+                            {% if u.userprofile.can_delete_invoices %}<span class="badge bg-danger perm-badge">Delete Invoices</span>{% endif %}
+                            {% if u.userprofile.can_view_payments %}<span class="badge bg-secondary perm-badge">View Payments</span>{% endif %}
+                            {% if u.userprofile.can_edit_payments %}<span class="badge bg-primary perm-badge">Edit Payments</span>{% endif %}
+                            {% if u.userprofile.can_delete_payments %}<span class="badge bg-danger perm-badge">Delete Payments</span>{% endif %}
+                            {% if u.userprofile.can_view_expenses %}<span class="badge bg-secondary perm-badge">View Expenses</span>{% endif %}
+                            {% if u.userprofile.can_edit_expenses %}<span class="badge bg-primary perm-badge">Edit Expenses</span>{% endif %}
+                            {% if u.userprofile.can_delete_expenses %}<span class="badge bg-danger perm-badge">Delete Expenses</span>{% endif %}
+                            {% if u.userprofile.can_view_reports %}<span class="badge bg-secondary perm-badge">View Reports</span>{% endif %}
+                            {% if u.userprofile.can_export_reports %}<span class="badge bg-primary perm-badge">Export Reports</span>{% endif %}
+                            {% if u.userprofile.can_view_journal %}<span class="badge bg-secondary perm-badge">View Journal</span>{% endif %}
+                            {% if u.userprofile.can_edit_journal %}<span class="badge bg-primary perm-badge">Edit Journal</span>{% endif %}
+                            {% if u.userprofile.can_view_budgets %}<span class="badge bg-secondary perm-badge">View Budgets</span>{% endif %}
+                            {% if u.userprofile.can_edit_budgets %}<span class="badge bg-primary perm-badge">Edit Budgets</span>{% endif %}
+                            {% if u.userprofile.can_delete_budgets %}<span class="badge bg-danger perm-badge">Delete Budgets</span>{% endif %}
+                            {% if u.userprofile.can_access_management %}<span class="badge bg-info perm-badge">Management</span>{% endif %}
+                            {% if u.userprofile.can_view_employees %}<span class="badge bg-secondary perm-badge">View Employees</span>{% endif %}
+                            {% if u.userprofile.can_edit_employees %}<span class="badge bg-primary perm-badge">Edit Employees</span>{% endif %}
+                            {% if u.userprofile.can_communicate %}<span class="badge bg-info perm-badge">Communicate</span>{% endif %}
+                            {% if u.userprofile.can_manage_users %}<span class="badge bg-warning text-dark perm-badge">Manage Users</span>{% endif %}
+                            {% if u.userprofile.can_access_settings %}<span class="badge bg-warning text-dark perm-badge">Settings</span>{% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary perm-badge">View Only</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Blocked</span>
+                        {% endif %}
+                        {% if online_users.users_online %}
+                            {% for ou in online_users.users_online %}
+                                {% if ou.id == u.id %}
+                                    <span class="badge bg-danger ms-1"><i class="bi bi-circle-fill"></i> Online</span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'user_edit' u.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                        {% if u.pk != request.user.pk %}
+                            <a href="{% url 'user_reset_password' u.pk %}" class="btn btn-sm btn-outline-warning" title="Reset Password"><i class="bi bi-key"></i> Reset</a>
+                            {% if u.is_active %}
+                                <a href="{% url 'user_toggle_status' u.pk %}" class="btn btn-sm btn-outline-warning">
+                                    <i class="bi bi-slash-circle"></i> Block
+                                </a>
+                            {% else %}
+                                <a href="{% url 'user_toggle_status' u.pk %}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-check-circle"></i> Unblock
+                                </a>
+                            {% endif %}
+                                <a href="{% url 'user_delete' u.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center text-muted">No users found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h5>Role Templates</h5>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Permission</th>
+                <th>Admin</th>
+                <th>Manager</th>
+                <th>Accountant</th>
+                <th>Viewer</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>View Dashboard</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+            </tr>
+            <tr>
+                <td>View Clients & Invoices</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+            </tr>
+            <tr>
+                <td>Create/Edit Records</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+            </tr>
+            <tr>
+                <td>Delete Records</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+            </tr>
+            <tr>
+                <td>Access Settings</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+            </tr>
+            <tr>
+                <td>Manage Users</td>
+                <td><i class="bi bi-check-circle text-success"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+                <td><i class="bi bi-x-circle text-danger"></i></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

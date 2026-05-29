@@ -1,0 +1,156 @@
+{% extends "accounting_app/base.html" %}
+{% load static %}
+{% block title %}Audit Log - Nkulawua{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="page-title page-title-gradient mb-0"><i class="bi bi-shield-check me-2"></i>Audit Log</h2>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-2">
+            <div class="card bg-dark text-white text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ activities|length }}</h5>
+                    <small class="text-muted">Audit Log</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card bg-success text-white text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ sales_count }}</h5>
+                    <small>Sales</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card bg-warning text-dark text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ refund_count }}</h5>
+                    <small>Refunds</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card bg-danger text-white text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ voided_count }}</h5>
+                    <small>Voided</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card bg-info text-white text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ adjustment_count }}</h5>
+                    <small>Adjustments</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card bg-primary text-white text-center py-3 h-100">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 fw-bold">{{ login_count }}</h5>
+                    <small>Logins</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Activity Log</h5>
+            <form method="GET" class="d-flex gap-2">
+                <select name="module" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                    <option value="">All Actions</option>
+                    {% for m in modules %}
+                    <option value="{{ m }}" {% if current_module == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Module</th>
+                            <th>Object</th>
+                            <th>Description</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in activities %}
+                        <tr>
+                            <td><strong>{{ a.user.username|default:"System" }}</strong></td>
+                            <td>
+                                {% if a.action == 'created' or a.action == 'Login' %}
+                                    <span class="badge bg-success">{{ a.action }}</span>
+                                {% elif a.action == 'updated' or a.action == 'Logout' %}
+                                    <span class="badge bg-warning text-dark">{{ a.action }}</span>
+                                {% elif a.action == 'deleted' or a.action == 'Voided' %}
+                                    <span class="badge bg-danger">{{ a.action }}</span>
+                                {% elif a.action == 'Refund' or a.action == 'refund' %}
+                                    <span class="badge bg-info text-dark">{{ a.action }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ a.action }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ a.model_name|default:"-" }}</td>
+                            <td>{% if a.object_id %}#{{ a.object_id }}{% else %}-{% endif %}</td>
+                            <td><small>{{ a.description|truncatechars:80 }}</small></td>
+                            <td><small class="text-muted" title="{{ a.timestamp|date:'Y-m-d H:i:s' }}">{{ a.time_ago }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">No activities recorded</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-door-open me-2"></i>Login Sessions</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Login</th>
+                            <th>Logout</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in sessions %}
+                        <tr class="{% if s.is_active %}table-success{% endif %}">
+                            <td><strong>{{ s.user.username }}</strong></td>
+                            <td><small class="text-muted" title="{{ s.login_time|date:'Y-m-d H:i:s' }}">{{ s.login_ago }}</small></td>
+                            <td>
+                                {% if s.logout_time %}
+                                    <small class="text-muted" title="{{ s.logout_time|date:'Y-m-d H:i:s' }}">{{ s.logout_ago }}</small>
+                                {% else %}
+                                    <span class="badge bg-success">Active</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ s.ip_address|default:"-" }}</code></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No login sessions</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

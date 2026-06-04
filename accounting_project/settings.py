@@ -16,10 +16,7 @@ SECRET_KEY = os.getenv(
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = [
-    '127.0.0.1',
-    'localhost',
-    'testserver',
-    '.onrender.com',
+    'nkula-wua.onrender.com',
 ] + [
     host.strip()
     for host in os.getenv('ALLOWED_HOSTS', '').split(',')

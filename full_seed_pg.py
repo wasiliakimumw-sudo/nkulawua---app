@@ -9,11 +9,12 @@ django.setup()
 from django.db import connection
 from django.core import management
 
-print('=== Step 1: Drop all project tables & migration records ===')
+print('=== Step 1: Drop all Django-managed tables ===')
 with connection.cursor() as cursor:
     cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")
     tables = [r[0] for r in cursor.fetchall()]
-    our_tables = [t for t in tables if any(t.startswith(p) for p in ('accounting_app_', 'system_modules_', 'auth_', 'django_', 'crispy_'))]
+    keep_prefixes = ('stock_manager_', 'audit_', 'data_migration_', 'system_updates_')
+    our_tables = [t for t in tables if not any(t.startswith(p) for p in keep_prefixes)]
     for t in our_tables:
         cursor.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE')
         print(f'  Dropped {t}')
@@ -23,7 +24,7 @@ print('=== Step 2: Run migrations ===')
 management.call_command('migrate', verbosity=1)
 
 print()
-print('=== Step 3: Load data ===')
+print('=== Step 3: Load data (User profiles auto-created by signals) ===')
 management.call_command('loaddata', 'seed_data.json', verbosity=1)
 
 print()

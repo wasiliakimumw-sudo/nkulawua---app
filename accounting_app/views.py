@@ -39,6 +39,7 @@ from .forms import (
     SchemeForm, VillageForm, VillagePopulationForm,
     BoardOfTrusteesForm, GeneralAssemblyMemberForm, EmployeeForm, ReportForm
 )
+from .ai_service import GroqAIService
 import json
 
 
@@ -7018,6 +7019,53 @@ def data_migration(request):
 # ======== MODULE 2: SYSTEM UPDATE MANAGER ========
 
 @login_required
+def ai_assistant(request):
+    ai = GroqAIService()
+    return render(request, "accounting_app/ai_assistant.html", {
+        "configured": ai.is_available()
+    })
+
+@login_required
+def ai_chat_api(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json as json_module
+
+    try:
+        body = json_module.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    message = body.get("message", "").strip()
+    history = body.get("history", [])
+
+    if not message:
+        return JsonResponse({"error": "Message is required"}, status=400)
+
+    ai = GroqAIService(user=request.user)
+    if not ai.is_available():
+        return JsonResponse({
+            "type": "error",
+            "message": "Groq AI is not configured. Ask the administrator to set the GROQ_API_KEY in the .env file. Get a free key at https://console.groq.com/keys"
+        })
+
+    result = ai.chat(message, history)
+    
+    action_result = None
+    if result.get("action"):
+        action_result = ai.execute_action(result["action"])
+
+    response_data = {
+        "type": result.get("type", "response"),
+        "message": result.get("message", ""),
+    }
+    if action_result:
+        response_data["action_result"] = action_result
+
+    return JsonResponse(response_data)
+
+
 def system_updates(request):
     if not _is_super_admin(request.user):
         messages.error(request, "Access denied. Super Administrator access required.")

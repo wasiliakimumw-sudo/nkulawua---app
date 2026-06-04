@@ -1,0 +1,423 @@
+{% extends "accounting_app/base.html" %}
+{% load static %}
+
+{% block title %}AI Assistant - Nkulawua{% endblock %}
+
+{% block content %}
+<style>
+    .ai-container {
+        max-width: 900px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 180px);
+    }
+    .ai-header {
+        text-align: center;
+        padding: 20px 0;
+        flex-shrink: 0;
+    }
+    .ai-header h2 {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    .ai-header h2 i {
+        color: #4285f4;
+        font-size: 2rem;
+    }
+    .ai-header p {
+        color: var(--text-secondary);
+        margin: 5px 0 0;
+    }
+    .ai-chat-box {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    .ai-chat-box::-webkit-scrollbar {
+        width: 6px;
+    }
+    .ai-chat-box::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+    }
+    .ai-message {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        line-height: 1.5;
+        font-size: 14px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+    .ai-message.user {
+        align-self: flex-end;
+        background: #4285f4;
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+    .ai-message.assistant {
+        align-self: flex-start;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-bottom-left-radius: 4px;
+    }
+    .ai-message.assistant h4 {
+        color: var(--text-primary);
+        font-size: 15px;
+        margin: 8px 0 4px;
+    }
+    .ai-message.assistant ul, .ai-message.assistant ol {
+        margin: 4px 0;
+        padding-left: 20px;
+    }
+    .ai-message.assistant li {
+        margin: 2px 0;
+    }
+    .ai-message.assistant strong {
+        color: #4285f4;
+    }
+    .ai-message.error {
+        align-self: flex-start;
+        background: #fff3f3;
+        color: #dc3545;
+        border: 1px solid #ffc9c9;
+        border-bottom-left-radius: 4px;
+    }
+    [data-bs-theme="dark"] .ai-message.error {
+        background: #3d1f1f;
+        border-color: #5c2a2a;
+    }
+    .ai-message.system {
+        align-self: center;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 12px;
+        text-align: center;
+        max-width: 100%;
+    }
+    .ai-message .action-success {
+        background: #d4edda;
+        color: #155724;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    [data-bs-theme="dark"] .ai-message .action-success {
+        background: #1e3a2a;
+        color: #75b798;
+    }
+    .ai-message .action-error {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-top: 8px;
+        font-size: 13px;
+    }
+    [data-bs-theme="dark"] .ai-message .action-error {
+        background: #3d1f1f;
+        color: #ea868f;
+    }
+    .ai-typing {
+        align-self: flex-start;
+        display: flex;
+        gap: 4px;
+        padding: 12px 16px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        border-bottom-left-radius: 4px;
+    }
+    .ai-typing span {
+        width: 8px;
+        height: 8px;
+        background: var(--text-secondary);
+        border-radius: 50%;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+    .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing {
+        0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+        30% { opacity: 1; transform: scale(1); }
+    }
+    .ai-input-area {
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+    .ai-input-area textarea {
+        flex: 1;
+        resize: none;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 14px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        min-height: 50px;
+        max-height: 120px;
+    }
+    .ai-input-area textarea:focus {
+        outline: none;
+        border-color: #4285f4;
+        box-shadow: 0 0 0 2px rgba(66,133,244,0.2);
+    }
+    .ai-input-area button {
+        padding: 12px 24px;
+        border-radius: 10px;
+        border: none;
+        background: #4285f4;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .ai-input-area button:hover {
+        background: #3367d6;
+        transform: translateY(-1px);
+    }
+    .ai-input-area button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .ai-suggestions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        flex-shrink: 0;
+        margin-bottom: 10px;
+    }
+    .ai-suggestions button {
+        padding: 6px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .ai-suggestions button:hover {
+        border-color: #4285f4;
+        color: #4285f4;
+        background: rgba(66,133,244,0.05);
+    }
+    .ai-not-configured {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    .ai-not-configured i {
+        font-size: 4rem;
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+    }
+    .ai-not-configured h3 {
+        color: var(--text-primary);
+        margin-bottom: 10px;
+    }
+    .ai-not-configured p {
+        color: var(--text-secondary);
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    .ai-not-configured code {
+        background: var(--bg-primary);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+</style>
+
+<div class="ai-container">
+    <div class="ai-header">
+        <h2><i class="bi bi-robot"></i> AI Assistant</h2>
+        <p>Powered by Groq (Llama 3) — Ask me to create invoices, record payments, or generate reports</p>
+    </div>
+
+    {% if not configured %}
+    <div class="card">
+        <div class="card-body ai-not-configured">
+            <i class="bi bi-cpu"></i>
+            <h3>AI Assistant Not Configured</h3>
+            <p>The Groq AI API key has not been set. Ask the administrator to configure it in the <code>.env</code> file.</p>
+            <p class="mt-3"><strong>Instructions for administrator:</strong></p>
+            <ol style="text-align:left;display:inline-block;margin-top:5px;">
+                <li>Get a free API key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></li>
+                <li>Add <code>GROQ_API_KEY=your-key</code> to the <code>.env</code> file</li>
+                <li>Restart the server</li>
+            </ol>
+        </div>
+    </div>
+    {% else %}
+    <div class="ai-suggestions" id="suggestions">
+        <button onclick="sendSuggestion('Show me the financial report for this year')">📊 Financial Report</button>
+        <button onclick="sendSuggestion('Show overdue invoices')">⚠️ Overdue Invoices</button>
+        <button onclick="sendSuggestion('Show beneficiaries with outstanding balances')">💰 Balances</button>
+        <button onclick="sendSuggestion('What can you help me with?')">❓ Help</button>
+    </div>
+
+    <div class="ai-chat-box" id="chatBox">
+        <div class="ai-message assistant">
+            <i class="bi bi-robot me-1" style="color:#4285f4;"></i>
+            Hello! I'm your AI assistant for the Nkula WUA management system. I can help you with:
+
+            • <strong>Create invoices</strong> — "Create an invoice for John for 50,000 MWK"
+            • <strong>Record payments</strong> — "Record a payment of 20,000 from Mary"
+            • <strong>Generate reports</strong> — "Show me the financial report for this month"
+            • <strong>Check balances</strong> — "Who has outstanding balances?"
+
+            How can I help you today?
+        </div>
+    </div>
+
+    <div class="ai-input-area">
+        <textarea id="userInput" rows="1" placeholder="Type your message..." onkeydown="handleKeyDown(event)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">
+            <i class="bi bi-send-fill"></i> Send
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+{% if configured %}
+const chatBox = document.getElementById('chatBox');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+let messageHistory = [];
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function sendSuggestion(text) {
+    userInput.value = text;
+    sendMessage();
+}
+
+function addMessage(text, role, extraHtml = '') {
+    const div = document.createElement('div');
+    div.className = `ai-message ${role}`;
+    div.innerHTML = text + extraHtml;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function showTyping() {
+    const div = document.createElement('div');
+    div.className = 'ai-typing';
+    div.id = 'typingIndicator';
+    div.innerHTML = '<span></span><span></span><span></span>';
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function hideTyping() {
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
+}
+
+function formatMessage(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
+
+async function sendMessage() {
+    const message = userInput.value.trim();
+    if (!message) return;
+
+    userInput.value = '';
+    addMessage(formatMessage(message), 'user');
+    showTyping();
+    sendBtn.disabled = true;
+
+    try {
+        const response = await fetch('{% url "ai_chat_api" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify({message: message, history: messageHistory})
+        });
+
+        const data = await response.json();
+        hideTyping();
+
+        let extraHtml = '';
+            if (data.action_result) {
+                if (data.action_result.success) {
+                    let reportHtml = data.action_result.message ? `<div class="mb-1">${formatMessage(data.action_result.message)}</div>` : '';
+                    if (data.action_result.report) {
+                        const r = data.action_result.report;
+                        if (r.type === 'beneficiary_balances' && r.beneficiaries) {
+                            reportHtml += `<div style="margin-top:8px;font-size:13px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="background:var(--border-color);font-weight:600;"><td style="padding:4px 6px;border:1px solid var(--border-color);">Name</td><td style="padding:4px 6px;border:1px solid var(--border-color);">Scheme</td><td style="padding:4px 6px;border:1px solid var(--border-color);">Village</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;">Bill</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;">Paid</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;">Balance</td></tr>`;
+                            r.beneficiaries.forEach(b => {
+                                reportHtml += `<tr><td style="padding:3px 6px;border:1px solid var(--border-color);">${b.name}</td><td style="padding:3px 6px;border:1px solid var(--border-color);">${b.scheme||'-'}</td><td style="padding:3px 6px;border:1px solid var(--border-color);">${b.village||'-'}</td><td style="padding:3px 6px;border:1px solid var(--border-color);text-align:right;">MWK ${Number(b.total_bill).toLocaleString()}</td><td style="padding:3px 6px;border:1px solid var(--border-color);text-align:right;">MWK ${Number(b.total_paid).toLocaleString()}</td><td style="padding:3px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(b.balance).toLocaleString()}</td></tr>`;
+                            });
+                            reportHtml += `</table></div>`;
+                        } else if (r.type === 'overdue' && r.invoices) {
+                            reportHtml += `<div style="margin-top:8px;font-size:13px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="background:var(--border-color);font-weight:600;"><td style="padding:4px 6px;border:1px solid var(--border-color);">Invoice</td><td style="padding:4px 6px;border:1px solid var(--border-color);">Beneficiary</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;">Amount</td><td style="padding:4px 6px;border:1px solid var(--border-color);">Due Date</td></tr>`;
+                            r.invoices.forEach(inv => {
+                                reportHtml += `<tr><td style="padding:3px 6px;border:1px solid var(--border-color);">${inv.number}</td><td style="padding:3px 6px;border:1px solid var(--border-color);">${inv.beneficiary}</td><td style="padding:3px 6px;border:1px solid var(--border-color);text-align:right;">MWK ${Number(inv.total).toLocaleString()}</td><td style="padding:3px 6px;border:1px solid var(--border-color);">${inv.due_date}</td></tr>`;
+                            });
+                            reportHtml += `</table></div>`;
+                        } else if (r.total_invoiced !== undefined) {
+                            reportHtml += `<div style="margin-top:8px;font-size:13px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">`;
+                            reportHtml += `<tr><td style="padding:4px 6px;border:1px solid var(--border-color);">Total Invoiced</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(r.total_invoiced).toLocaleString()}</td></tr>`;
+                            reportHtml += `<tr><td style="padding:4px 6px;border:1px solid var(--border-color);">Total Payments</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(r.total_payments).toLocaleString()}</td></tr>`;
+                            reportHtml += `<tr><td style="padding:4px 6px;border:1px solid var(--border-color);">Total Expenses</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(r.total_expenses).toLocaleString()}</td></tr>`;
+                            reportHtml += `<tr style="background:var(--border-color);"><td style="padding:4px 6px;border:1px solid var(--border-color);font-weight:600;">Balance to Collect</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(r.balance_to_collect).toLocaleString()}</td></tr>`;
+                            reportHtml += `<tr style="background:var(--border-color);"><td style="padding:4px 6px;border:1px solid var(--border-color);font-weight:600;">Net Income</td><td style="padding:4px 6px;border:1px solid var(--border-color);text-align:right;font-weight:600;">MWK ${Number(r.net_income).toLocaleString()}</td></tr>`;
+                            reportHtml += `</table></div>`;
+                        }
+                    }
+                    extraHtml = `<div class="action-success"><i class="bi bi-check-circle-fill"></i> ${reportHtml}</div>`;
+                } else {
+                    extraHtml = `<div class="action-error"><i class="bi bi-exclamation-circle-fill"></i> ${formatMessage(data.action_result.message)}</div>`;
+                }
+            }
+
+        const replyText = formatMessage(data.message || '');
+        addMessage(replyText, data.type === 'error' ? 'error' : 'assistant', extraHtml);
+
+        messageHistory.push({role: 'user', text: message});
+        messageHistory.push({role: 'assistant', text: data.message || ''});
+        if (messageHistory.length > 50) {
+            messageHistory = messageHistory.slice(-50);
+        }
+    } catch (err) {
+        hideTyping();
+        addMessage('Sorry, there was an error connecting to the AI service. Please try again.', 'error');
+    } finally {
+        sendBtn.disabled = false;
+        userInput.focus();
+    }
+}
+
+userInput.focus();
+{% endif %}
+</script>
+{% endblock %}

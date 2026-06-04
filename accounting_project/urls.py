@@ -153,6 +153,8 @@ urlpatterns = [
     path('audit-log/', views.audit_log, name='audit_log'),
     path('data-migration/', views.data_migration, name='data_migration'),
     path('system-updates/', views.system_updates, name='system_updates'),
+    path('ai-assistant/', views.ai_assistant, name='ai_assistant'),
+    path('ai-assistant/api/chat/', views.ai_chat_api, name='ai_chat_api'),
 ]
 
 if settings.DEBUG:

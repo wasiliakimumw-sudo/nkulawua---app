@@ -13,12 +13,13 @@ SECRET_KEY = os.getenv(
     'django-insecure-default-change-this'
 )
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
     'testserver',
+    '.onrender.com',
 ] + [
     host.strip()
     for host in os.getenv('ALLOWED_HOSTS', '').split(',')
@@ -113,7 +114,14 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # MEDIA FILES
 MEDIA_URL = '/media/'
@@ -139,15 +147,12 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
 # SECURITY (PRODUCTION SAFE)
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-if not DEBUG:
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
-    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False').lower() == 'true'
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True').lower() == 'true'
 
 SECURE_SSL_REDIRECT = os.getenv(
     'SECURE_SSL_REDIRECT',
-    'False'
+    'True'
 ).lower() == 'true'
 
 if SECURE_SSL_REDIRECT:

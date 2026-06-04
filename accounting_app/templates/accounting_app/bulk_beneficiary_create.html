@@ -3,32 +3,94 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4>Bulk Create Beneficiaries</h4>
+    <h4><i class="bi bi-people"></i> Bulk Create Beneficiaries</h4>
     <a href="{% url 'beneficiary_list' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Beneficiaries</a>
 </div>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-people"></i> Create Multiple Beneficiaries</h5>
+<form method="post" id="bulkCreateForm">
+    {% csrf_token %}
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-people"></i> Beneficiaries to Create</h6>
+                    <small class="text-white">Selected: <span id="selectedCount" class="fw-bold">0</span></small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-hover table-striped mb-0" id="beneficiaryTable">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="selectAll" class="form-check-input">
+                                    </th>
+                                    <th style="width: 60px;">#</th>
+                                    <th>Beneficiary Name <span class="text-danger">*</span></th>
+                                    <th style="width: 120px;">Type</th>
+                                    <th style="width: 70px;">HH</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                {% for i in "1234567890"|make_list %}
+                                <tr class="beneficiary-row">
+                                    <td>
+                                        <input type="checkbox" name="selected" value="{{ forloop.counter0 }}"
+                                               class="form-check-input row-checkbox" checked>
+                                    </td>
+                                    <td class="text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <input type="text" name="name_{{ forloop.counter0 }}" class="form-control form-control-sm"
+                                               placeholder="Enter beneficiary name">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="type_{{ forloop.counter0 }}" class="form-control form-control-sm"
+                                               placeholder="private/communal">
+                                    </td>
+                                    <td>
+                                        <input type="number" name="hh_{{ forloop.counter0 }}" class="form-control form-control-sm"
+                                               min="0" value="0">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addRow()">
+                            <i class="bi bi-plus-lg"></i> Add Row
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSelected()">
+                            <i class="bi bi-trash"></i> Remove Selected
+                        </button>
+                    </div>
+                    <small class="text-muted">Total rows: <span id="totalRows">10</span></small>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-gear"></i> Default Settings (applied to all)</h6>
+                </div>
+                <div class="card-body">
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Beneficiary Type <span class="text-danger">*</span></label>
-                            <select name="beneficiary_type" class="form-select" required>
+                            <select name="beneficiary_type" id="defaultType" class="form-select" required onchange="applyDefaults()">
                                 <option value="">-- Select Type --</option>
                                 <option value="private">Private</option>
                                 <option value="communal">Communal</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Scheme <span class="text-danger">*</span></label>
-                            <select name="scheme" class="form-select" required>
+                            <select name="scheme" id="defaultScheme" class="form-select" required onchange="applyDefaults()">
                                 <option value="">-- Select Scheme --</option>
                                 <option value="Mangale">Mangale</option>
                                 <option value="Nkala">Nkala</option>
@@ -36,78 +98,186 @@
                                 <option value="Milala">Milala</option>
                             </select>
                         </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Village <span class="text-danger">*</span></label>
-                            <input type="text" name="village" class="form-control" placeholder="Enter village name" required>
+                            <input type="text" name="village" id="defaultVillage" class="form-control" placeholder="Enter village name" required onchange="applyDefaults()">
                         </div>
-                        <div class="col-md-6">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
                             <label class="form-label">Country</label>
                             <input type="text" name="country" class="form-control" placeholder="e.g., Malawi" value="Malawi">
                         </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Household Count <span class="text-danger">*</span></label>
-                            <input type="number" name="household_count" class="form-control" value="0" min="0">
+                        <div class="col-md-4">
+                            <label class="form-label">Default Household Count</label>
+                            <input type="number" name="household_count" id="defaultHH" class="form-control" value="0" min="0" onchange="applyDefaults()">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Default Credit Limit</label>
                             <input type="number" name="credit_limit" class="form-control" value="0" min="0" step="0.01">
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Beneficiary Names (one per line) <span class="text-danger">*</span></label>
-                        <textarea name="beneficiary_names" class="form-control" rows="15" placeholder="Enter beneficiary names, one per line:&#10;John Doe&#10;Jane Smith&#10;Village Committee&#10;..." required></textarea>
-                        <small class="text-muted">Enter each beneficiary name on a new line. These will be created with the settings above.</small>
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Create Beneficiaries</button>
-                        <a href="{% url 'beneficiary_list' %}" class="btn btn-secondary">Cancel</a>
-                    </div>
-                </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-question-circle"></i> Help</h6>
+                </div>
+                <div class="card-body">
+                    <h6>How to use bulk create:</h6>
+                    <ol>
+                        <li>Fill in default settings (scheme, village, etc.)</li>
+                        <li>Enter each beneficiary name in the table</li>
+                        <li>Use checkboxes to select/deselect beneficiaries</li>
+                        <li>Click "Select All" to select all visible rows</li>
+                        <li>Click "Create Beneficiaries" to add all selected</li>
+                    </ol>
+                    <hr>
+                    <h6>Alternative: Import from Excel</h6>
+                    <p>If you have many beneficiaries in an Excel file, use the import feature.</p>
+                    <a href="{% url 'bulk_beneficiary_import' %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-file-earmark-arrow-up"></i> Import from Excel
+                    </a>
+                    <hr>
+                    <h6>Download Template</h6>
+                    <a href="{% url 'download_beneficiary_template' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-download"></i> Download Template
+                    </a>
+                </div>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                    <i class="bi bi-check-lg"></i> Create Selected (<span id="submitCount">0</span>)
+                </button>
+                <a href="{% url 'beneficiary_list' %}" class="btn btn-secondary">Cancel</a>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-question-circle"></i> Help</h5>
-            </div>
-            <div class="card-body">
-                <h6>How to use bulk create:</h6>
-                <ol>
-                    <li>Select the beneficiary type (Private or Communal)</li>
-                    <li>Choose a scheme</li>
-                    <li>Enter village name</li>
-                    <li>Enter household count (must be greater than 0)</li>
-                    <li>Enter beneficiary names - one per line</li>
-                    <li>Click "Create Beneficiaries" to add all beneficiaries</li>
-                </ol>
-                
-                <hr>
-                
-                <h6>Alternative: Import from Excel</h6>
-                <p>If you have many beneficiaries in an Excel file, you can use the import feature.</p>
-                <a href="{% url 'bulk_beneficiary_import' %}" class="btn btn-success btn-sm">
-                    <i class="bi bi-file-earmark-arrow-up"></i> Import from Excel
-                </a>
-                
-                <hr>
-                
-                <h6>Download Template</h6>
-                <p>Get a sample Excel template to help you prepare your data.</p>
-                <a href="{% url 'download_beneficiary_template' %}" class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-download"></i> Download Template
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let rowCounter = 10;
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('submitCount').textContent = count;
+}
+
+function updateTotalRows() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    document.getElementById('totalRows').textContent = rows.length;
+}
+
+function addRow() {
+    const tbody = document.getElementById('tableBody');
+    const tr = document.createElement('tr');
+    tr.className = 'beneficiary-row';
+    tr.innerHTML = `
+        <td>
+            <input type="checkbox" name="selected" value="${rowCounter}"
+                   class="form-check-input row-checkbox" checked>
+        </td>
+        <td class="text-muted">${rowCounter + 1}</td>
+        <td>
+                                        <input type="text" name="name_${rowCounter}" class="form-control form-control-sm"
+                                               placeholder="Enter beneficiary name">
+        </td>
+        <td>
+            <input type="text" name="type_${rowCounter}" class="form-control form-control-sm"
+                   placeholder="private/communal">
+        </td>
+        <td>
+            <input type="number" name="hh_${rowCounter}" class="form-control form-control-sm"
+                   min="0" value="0">
+        </td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelector('.row-checkbox').addEventListener('change', updateSelectedCount);
+    rowCounter++;
+    renumberRows();
+    updateTotalRows();
+    updateSelectedCount();
+}
+
+function removeSelected() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    if (checkboxes.length === 0) {
+        alert('No rows selected. Check the rows you want to remove.');
+        return;
+    }
+    checkboxes.forEach(cb => {
+        const tr = cb.closest('tr');
+        if (tr) tr.remove();
+    });
+    renumberRows();
+    updateTotalRows();
+    updateSelectedCount();
+}
+
+function renumberRows() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach((row, index) => {
+        row.querySelectorAll('td')[1].textContent = index + 1;
+    });
+}
+
+document.getElementById('selectAll').addEventListener('change', function() {
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = this.checked;
+    });
+    updateSelectedCount();
+});
+
+function applyDefaults() {
+    const defaultType = document.getElementById('defaultType').value;
+    const defaultHH = document.getElementById('defaultHH').value;
+    const rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach(row => {
+        const typeInput = row.querySelector('input[name^="type_"]');
+        const hhInput = row.querySelector('input[name^="hh_"]');
+        if (defaultType && typeInput && !typeInput.value) {
+            typeInput.value = defaultType;
+        }
+        if (defaultHH && hhInput) {
+            hhInput.value = defaultHH;
+        }
+    });
+}
+
+document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+});
+
+updateSelectedCount();
+updateTotalRows();
+
+document.getElementById('bulkCreateForm').addEventListener('submit', function(e) {
+    const selectedNames = document.querySelectorAll('.row-checkbox:checked');
+    const validRows = [];
+    selectedNames.forEach(cb => {
+        const tr = cb.closest('tr');
+        const nameInput = tr.querySelector('input[name^="name_"]');
+        if (nameInput && nameInput.value.trim()) {
+            validRows.push(nameInput.value.trim());
+        }
+    });
+    if (validRows.length === 0) {
+        e.preventDefault();
+        alert('Please enter at least one beneficiary name and check its checkbox.');
+        return;
+    }
+    // Add hidden field with joined names for the view
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'beneficiary_names';
+    hidden.value = validRows.join('\n');
+    this.appendChild(hidden);
+});
+</script>
 {% endblock %}

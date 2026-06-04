@@ -44,6 +44,10 @@
             --border-color: #404850;
         }
         
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
         body { 
             background: var(--bg-primary); 
             color: var(--text-primary);
@@ -675,6 +679,55 @@
         }
         
         /* ===== RESPONSIVE SIDEBAR ===== */
+        @media (max-width: 1200px) {
+            :root {
+                --sidebar-width: 200px;
+            }
+            .sidebar a {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .sidebar .sidebar-brand {
+                font-size: 13px;
+                padding: 8px 12px;
+            }
+            .sidebar-dropdown-toggle {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .sidebar-dropdown-menu a {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .main-content {
+                padding: 15px;
+            }
+        }
+        @media (max-width: 992px) {
+            :root {
+                --sidebar-width: 180px;
+            }
+            .sidebar a {
+                font-size: 11px;
+                padding: 5px 10px;
+            }
+            .sidebar .sidebar-brand {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            .sidebar-dropdown-toggle {
+                font-size: 11px;
+                padding: 5px 10px;
+            }
+            .sidebar-dropdown-menu a {
+                font-size: 11px;
+                padding: 5px 10px;
+            }
+            .sidebar a i {
+                font-size: 12px;
+                margin-right: 5px;
+            }
+        }
         @media (max-width: 768px) {
             .mobile-navbar { display: flex; }
             
@@ -1125,7 +1178,7 @@
     <div class="main-content">
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show d-flex align-items-center" role="alert" data-bs-autodismiss="true" data-bs-delay="3000">
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show d-flex align-items-center" role="alert">
                     <i class="bi {% if message.tags == 'success' %}bi-check-circle-fill{% elif message.tags == 'error' %}bi-exclamation-triangle-fill{% elif message.tags == 'warning' %}bi-exclamation-circle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>
                     <div>{{ message }}</div>
                     <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
@@ -1320,13 +1373,7 @@
         //     }
         // }
         
-        // Auto-dismiss alerts after 3 seconds
-        setTimeout(function() {
-            document.querySelectorAll('.alert').forEach(function(alert) {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 3000);
+        // Notifications stay until manually closed
         
         // Copy to Clipboard functionality
         document.querySelectorAll('.copy-btn').forEach(function(btn) {

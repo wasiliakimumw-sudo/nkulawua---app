@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Sum, Count, Q, F
-from django.db import models
+from django.db import models, transaction
 from django.http import HttpResponse
 from django.core.paginator import Paginator
 from django.core.mail import send_mail
@@ -602,7 +602,7 @@ def beneficiary_toggle_status(request, pk):
 @login_required
 def bulk_beneficiary_create(request):
     if request.method == "POST":
-        client_names = request.POST.get('client_names', '').strip()
+        beneficiary_names = request.POST.get('beneficiary_names', '').strip()
         beneficiary_type = request.POST.get('beneficiary_type', '').strip()
         scheme = request.POST.get('scheme', '').strip()
         village = request.POST.get('village', '').strip()
@@ -626,7 +626,7 @@ def bulk_beneficiary_create(request):
                 messages.error(request, error)
             return render(request, "accounting_app/bulk_beneficiary_create.html")
         
-        names_list = [name.strip() for name in client_names.split('\n') if name.strip()]
+        names_list = [name.strip() for name in beneficiary_names.split('\n') if name.strip()]
         
         created_count = 0
         error_list = []
@@ -881,40 +881,47 @@ def bulk_beneficiary_edit(request):
         updated = 0
         errors = []
 
-        for bid in selected_ids:
-            try:
-                b = Beneficiary.objects.get(pk=bid)
-                changed = False
+        try:
+            with transaction.atomic():
+                for bid in selected_ids:
+                    try:
+                        b = Beneficiary.objects.get(pk=bid)
+                        changed = False
 
-                if scheme and scheme != b.scheme:
-                    b.scheme = scheme
-                    changed = True
-                if beneficiary_type and beneficiary_type != b.beneficiary_type:
-                    b.beneficiary_type = beneficiary_type
-                    changed = True
-                if village and village != b.village:
-                    b.village = village
-                    changed = True
-                if household_count and int(household_count) != b.household_count:
-                    b.household_count = int(household_count)
-                    changed = True
-                if credit_limit and float(credit_limit) != b.credit_limit:
-                    b.credit_limit = float(credit_limit)
-                    changed = True
-                if payment_terms and int(payment_terms) != b.payment_terms:
-                    b.payment_terms = int(payment_terms)
-                    changed = True
-                if is_active:
-                    new_active = is_active == 'true'
-                    if new_active != b.is_active:
-                        b.is_active = new_active
-                        changed = True
+                        if scheme and scheme != b.scheme:
+                            b.scheme = scheme
+                            changed = True
+                        if beneficiary_type and beneficiary_type != b.beneficiary_type:
+                            b.beneficiary_type = beneficiary_type
+                            changed = True
+                        if village and village != b.village:
+                            b.village = village
+                            changed = True
+                        if household_count and int(household_count) != b.household_count:
+                            b.household_count = int(household_count)
+                            changed = True
+                        if credit_limit and float(credit_limit) != b.credit_limit:
+                            b.credit_limit = float(credit_limit)
+                            changed = True
+                        if payment_terms and int(payment_terms) != b.payment_terms:
+                            b.payment_terms = int(payment_terms)
+                            changed = True
+                        if is_active:
+                            new_active = is_active == 'true'
+                            if new_active != b.is_active:
+                                b.is_active = new_active
+                                changed = True
 
-                if changed:
-                    b.save()
-                    updated += 1
-            except Exception as e:
-                errors.append(f"{b.name}: {str(e)}")
+                        if changed:
+                            b.save()
+                            updated += 1
+                    except Beneficiary.DoesNotExist:
+                        errors.append(f"Beneficiary #{bid} not found")
+                    except Exception as e:
+                        b_name = getattr(b, 'name', f"Beneficiary #{bid}")
+                        errors.append(f"{b_name}: {str(e)}")
+        except Exception as e:
+            errors.append(f"Database error: {str(e)}")
 
         if updated:
             messages.success(request, f"Successfully updated {updated} beneficiary(ies)")
@@ -1286,8 +1293,10 @@ def bulk_invoice_create(request):
     
     if request.method == "POST":
         amount = float(request.POST.get('amount', 0))
-        issue_date = request.POST.get('issue_date')
-        due_date = request.POST.get('due_date')
+        raw_issue_date = request.POST.get('issue_date')
+        raw_due_date = request.POST.get('due_date')
+        issue_date = date.fromisoformat(raw_issue_date) if raw_issue_date else None
+        due_date = date.fromisoformat(raw_due_date) if raw_due_date else None
         notes = request.POST.get('notes', '')
         terms = request.POST.get('terms', '')
         
@@ -1317,34 +1326,41 @@ def bulk_invoice_create(request):
         created_invoices = []
         errors = []
         
-        for beneficiary_id in selected_ids:
-            try:
-                client = Beneficiary.objects.get(pk=beneficiary_id)
-                invoice_number = generate_invoice_number()
+        try:
+            with transaction.atomic():
+                for beneficiary_id in selected_ids:
+                    try:
+                        client = Beneficiary.objects.get(pk=beneficiary_id)
+                        invoice_number = generate_invoice_number()
+                        
+                        invoice = Invoice.objects.create(
+                            invoice_number=invoice_number,
+                            beneficiary=client,
+                            issue_date=issue_date,
+                            due_date=due_date,
+                            household_count=client.household_count or 0,
+                            cost_per_unit=amount,
+                            tax_rate=0,
+                            tax_amount=0,
+                            discount=0,
+                            total_amount=amount,
+                            notes=notes,
+                            terms=terms,
+                            created_by=request.user,
+                            is_bulk=True,
+                            bulk_group_id=bulk_group_id
+                        )
+                        created_invoices.append(invoice)
+                    except Beneficiary.DoesNotExist:
+                        errors.append(f"Beneficiary #{beneficiary_id} not found")
+                    except Exception as e:
+                        client_name = getattr(client, 'name', f"Beneficiary #{beneficiary_id}")
+                        errors.append(f"{client_name}: {str(e)}")
                 
-                invoice = Invoice.objects.create(
-                    invoice_number=invoice_number,
-                    beneficiary=client,
-                    issue_date=issue_date,
-                    due_date=due_date,
-                    household_count=client.household_count,
-                    cost_per_unit=amount,
-                    tax_rate=0,
-                    tax_amount=0,
-                    discount=0,
-                    total_amount=amount,
-                    notes=notes,
-                    terms=terms,
-                    created_by=request.user,
-                    is_bulk=True,
-                    bulk_group_id=bulk_group_id
-                )
-                created_invoices.append(invoice)
-            except Exception as e:
-                errors.append(f"{client.name}: {str(e)}")
-        
-        for inv in created_invoices:
-            inv.beneficiary.recalculate_totals()
+                for inv in created_invoices:
+                    inv.beneficiary.recalculate_totals()
+        except Exception as e:
+            errors.append(f"Database error: {str(e)}")
         
         if created_invoices:
             messages.success(request, f"Successfully created {len(created_invoices)} invoices")
@@ -1371,8 +1387,10 @@ def bulk_invoice_edit(request, bulk_group_id):
     if request.method == "POST":
         household_count = int(request.POST.get('household_count', 0))
         cost_per_unit = float(request.POST.get('cost_per_unit', 0))
-        issue_date = request.POST.get('issue_date')
-        due_date = request.POST.get('due_date')
+        raw_issue_date = request.POST.get('issue_date')
+        raw_due_date = request.POST.get('due_date')
+        issue_date = date.fromisoformat(raw_issue_date) if raw_issue_date else None
+        due_date = date.fromisoformat(raw_due_date) if raw_due_date else None
         tax_rate = float(request.POST.get('tax_rate', 0))
         discount = float(request.POST.get('discount', 0))
         notes = request.POST.get('notes', '')
@@ -2809,7 +2827,8 @@ def bulk_payment_create(request):
 
     if request.method == "POST":
         amount = float(request.POST.get('amount', 0))
-        payment_date = request.POST.get('payment_date')
+        raw_payment_date = request.POST.get('payment_date')
+        payment_date = date.fromisoformat(raw_payment_date) if raw_payment_date else None
         account_id = request.POST.get('account')
         payment_method = request.POST.get('payment_method', 'bank_transfer')
         reference = request.POST.get('reference', '')
@@ -2851,35 +2870,42 @@ def bulk_payment_create(request):
         created_payments = []
         errors = []
 
-        for beneficiary_id in selected_ids:
-            try:
-                client = Beneficiary.objects.get(pk=beneficiary_id)
+        try:
+            with transaction.atomic():
+                for beneficiary_id in selected_ids:
+                    try:
+                        client = Beneficiary.objects.get(pk=beneficiary_id)
 
-                payment = Payment.objects.create(
-                    beneficiary=client,
-                    invoice=None,
-                    amount=amount,
-                    account=account,
-                    payment_date=payment_date,
-                    payment_method=payment_method,
-                    reference=reference,
-                    notes=notes,
-                    created_by=request.user,
-                    is_bulk=True,
-                    bulk_group_id=bulk_group_id,
-                )
-                created_payments.append(payment)
-            except Exception as e:
-                errors.append(f"{client.name}: {str(e)}")
-
-        for p in created_payments:
-            p.beneficiary.recalculate_totals()
-
+                        payment = Payment.objects.create(
+                            beneficiary=client,
+                            invoice=None,
+                            amount=amount,
+                            account=account,
+                            payment_date=payment_date,
+                            payment_method=payment_method,
+                            reference=reference,
+                            notes=notes,
+                            created_by=request.user,
+                            is_bulk=True,
+                            bulk_group_id=bulk_group_id,
+                        )
+                        created_payments.append(payment)
+                    except Beneficiary.DoesNotExist:
+                        errors.append(f"Beneficiary #{beneficiary_id} not found")
+                    except Exception as e:
+                        client_name = getattr(client, 'name', f"Beneficiary #{beneficiary_id}")
+                        errors.append(f"{client_name}: {str(e)}")
+                
+                for p in created_payments:
+                    p.beneficiary.recalculate_totals()
+        except Exception as e:
+            errors.append(f"Database error: {str(e)}")
+        
         if created_payments:
             messages.success(request, f"Successfully recorded {len(created_payments)} payments")
         if errors:
             messages.warning(request, f"Failed to record {len(errors)} payments: {'; '.join(errors)}")
-
+        
         return redirect("payment_list")
 
     return render(request, "accounting_app/bulk_payment_form.html", base_ctx)

@@ -22,32 +22,52 @@
                     <h6 class="mb-0"><i class="bi bi-people"></i> Select Beneficiaries</h6>
                     <div class="d-flex gap-2 align-items-center flex-wrap">
                         <input type="text" id="beneficiarySearch" class="form-control form-control-sm" placeholder="Search name, phone, village..." style="width: 170px;">
-                        <select id="schemeFilter" class="form-select form-select-sm" style="width: 110px;">
-                            <option value="">All Schemes</option>
-                            {% for code, name in schemes %}
-                            <option value="{{ code }}">{{ name }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light border dropdown-toggle" type="button" id="schemeFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="min-width: 110px; text-align: left; background: white;">
+                                <i class="bi bi-funnel"></i> Schemes
+                            </button>
+                            <ul class="dropdown-menu p-2" aria-labelledby="schemeFilterDropdown" style="min-width: 180px;">
+                                <li>
+                                    <label class="dropdown-item d-flex align-items-center gap-2 py-1">
+                                        <input type="checkbox" id="schemeAll" class="form-check-input" checked onchange="toggleAllSchemes(this.checked)">
+                                        <span class="fw-semibold">All Schemes</span>
+                                    </label>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% for code, name in schemes %}
+                                <li>
+                                    <label class="dropdown-item d-flex align-items-center gap-2 py-1">
+                                        <input type="checkbox" class="form-check-input scheme-checkbox" value="{{ code }}" checked onchange="onSchemeChange()">
+                                        <span>{{ name }}</span>
+                                    </label>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
                         <select id="typeFilter" class="form-select form-select-sm" style="width: 120px;">
                             <option value="">All Types</option>
                             <option value="private">Private</option>
                             <option value="communal">Communal</option>
                             <option value="town">Town</option>
                         </select>
-                        <select id="householdFilter" class="form-select form-select-sm" style="width: 90px;">
-                            <option value="">HH</option>
-                            <option value="0">0</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10">10</option>
-                        </select>
+                        <input list="householdList" id="householdFilter" class="form-control form-control-sm" type="number" min="0" placeholder="HH" style="width: 90px;">
+                        <datalist id="householdList">
+                            <option value="0">
+                            <option value="1">
+                            <option value="2">
+                            <option value="3">
+                            <option value="4">
+                            <option value="5">
+                            <option value="6">
+                            <option value="7">
+                            <option value="8">
+                            <option value="9">
+                            <option value="10">
+                            <option value="15">
+                            <option value="20">
+                            <option value="25">
+                            <option value="30">
+                        </datalist>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -186,22 +206,52 @@ function updateSelectedCount() {
     updateSummary();
 }
 
+function getSelectedSchemes() {
+    var checkboxes = document.querySelectorAll('.scheme-checkbox:checked');
+    var schemes = [];
+    checkboxes.forEach(function(cb) { schemes.push(cb.value); });
+    return schemes;
+}
+
+function toggleAllSchemes(checked) {
+    document.querySelectorAll('.scheme-checkbox').forEach(function(cb) { cb.checked = checked; });
+    filterBeneficiaries();
+}
+
+function onSchemeChange() {
+    var allChecked = true;
+    document.querySelectorAll('.scheme-checkbox').forEach(function(cb) { if (!cb.checked) allChecked = false; });
+    document.getElementById('schemeAll').checked = allChecked;
+    filterBeneficiaries();
+}
+
 function filterBeneficiaries() {
-    var schemeFilter = document.getElementById('schemeFilter').value;
+    var selectedSchemes = getSelectedSchemes();
+    var schemeAll = document.getElementById('schemeAll');
     var typeFilter = document.getElementById('typeFilter').value;
     var householdFilter = document.getElementById('householdFilter').value;
     var searchText = document.getElementById('beneficiarySearch').value.toLowerCase();
+    var selectAll = document.getElementById('selectAllBeneficiaries');
     var rows = document.querySelectorAll('.beneficiary-row');
     rows.forEach(function(row) {
         var scheme = row.dataset.scheme || '';
         var btype = row.dataset.type || '';
         var households = parseInt(row.dataset.households) || 0;
         var search = row.dataset.search || '';
-        var showScheme = !schemeFilter || scheme === schemeFilter;
+        var showScheme = schemeAll.checked || selectedSchemes.length === 0 || selectedSchemes.indexOf(scheme) !== -1;
         var showType = !typeFilter || btype === typeFilter;
         var showHousehold = !householdFilter || households === parseInt(householdFilter);
         var showSearch = !searchText || search.includes(searchText);
-        row.style.display = (showScheme && showType && showHousehold && showSearch) ? '' : 'none';
+        var visible = showScheme && showType && showHousehold && showSearch;
+        row.style.display = visible ? '' : 'none';
+        var cb = row.querySelector('.beneficiary-checkbox');
+        if (cb) {
+            if (!visible) {
+                cb.checked = false;
+            } else if (selectAll.checked) {
+                cb.checked = true;
+            }
+        }
     });
     updateSelectedCount();
 }
@@ -215,22 +265,24 @@ function updateSummary() {
     document.getElementById('totalAmountSummary').textContent = total.toFixed(2);
 }
 
-document.getElementById('schemeFilter').addEventListener('change', filterBeneficiaries);
 document.getElementById('typeFilter').addEventListener('change', filterBeneficiaries);
 document.getElementById('householdFilter').addEventListener('change', filterBeneficiaries);
 document.getElementById('beneficiarySearch').addEventListener('input', filterBeneficiaries);
 
 document.getElementById('selectAllBeneficiaries').addEventListener('change', function() {
-    var master = this;
+    selectAllVisible(this.checked);
+});
+
+function selectAllVisible(checked) {
     var rows = document.querySelectorAll('.beneficiary-row');
     rows.forEach(function(row) {
         if (row.style.display !== 'none') {
             var cb = row.querySelector('.beneficiary-checkbox');
-            if (cb) cb.checked = master.checked;
+            if (cb) cb.checked = checked;
         }
     });
     updateSelectedCount();
-});
+}
 
 document.getElementById('clearSelectionBtn').addEventListener('click', function() {
     document.querySelectorAll('.beneficiary-checkbox').forEach(function(cb) {

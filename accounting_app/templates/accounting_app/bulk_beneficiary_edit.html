@@ -1,18 +1,18 @@
 {% extends "accounting_app/base.html" %}
-{% block title %}Bulk Payment Creation{% endblock %}
+{% block title %}Bulk Edit Beneficiaries{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4><i class="bi bi-cash-stack"></i> Bulk Payment Creation</h4>
-    <a href="{% url 'payment_list' %}" class="btn btn-secondary">Back to Payments</a>
+    <h4><i class="bi bi-pencil-square"></i> Bulk Edit Beneficiaries</h4>
+    <a href="{% url 'beneficiary_list' %}" class="btn btn-secondary">Back to Beneficiaries</a>
 </div>
 
 <div class="alert alert-info mb-4">
     <i class="bi bi-info-circle"></i>
-    <strong>Bulk Payment Creation:</strong> Select beneficiaries from the table, enter payment details, and record payments for all selected beneficiaries at once.
+    <strong>Bulk Edit Beneficiaries:</strong> Select beneficiaries from the table, then fill in the fields you want to update. Only fields with a value will be applied. Leave a field blank to skip it.
 </div>
 
-<form method="post" id="bulkPaymentForm">
+<form method="post" id="bulkEditForm">
     {% csrf_token %}
 
     <div class="row">
@@ -30,9 +30,9 @@
                         </select>
                         <select id="typeFilter" class="form-select form-select-sm" style="width: 120px;">
                             <option value="">All Types</option>
-                            <option value="private">Private</option>
-                            <option value="communal">Communal</option>
-                            <option value="town">Town</option>
+                            {% for code, name in types %}
+                            <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
                         </select>
                         <select id="householdFilter" class="form-select form-select-sm" style="width: 90px;">
                             <option value="">HH</option>
@@ -59,10 +59,12 @@
                                         <input type="checkbox" id="selectAllBeneficiaries" class="form-check-input">
                                     </th>
                                     <th>Beneficiary</th>
+                                    <th>Type</th>
                                     <th>Scheme</th>
                                     <th>Village</th>
-                                    <th style="width: 100px;">Households</th>
-                                    <th style="width: 130px;">Outstanding</th>
+                                    <th style="width: 80px;">HH</th>
+                                    <th style="width: 100px;">Credit Limit</th>
+                                    <th style="width: 60px;">Active</th>
                                 </tr>
                             </thead>
                             <tbody id="beneficiaryTableBody">
@@ -70,8 +72,7 @@
                                 <tr class="beneficiary-row" data-scheme="{{ b.scheme }}" data-type="{{ b.beneficiary_type }}" data-households="{{ b.household_count }}" data-search="{{ b.name|lower }} {{ b.phone|lower }} {{ b.village|lower }}">
                                     <td>
                                         <input type="checkbox" name="selected_beneficiaries" value="{{ b.id }}"
-                                               id="beneficiary_{{ b.id }}" class="form-check-input beneficiary-checkbox"
-                                               data-outstanding="{{ b.total_outstanding }}">
+                                               id="beneficiary_{{ b.id }}" class="form-check-input beneficiary-checkbox">
                                     </td>
                                     <td>
                                         <label for="beneficiary_{{ b.id }}" class="fw-semibold" style="cursor: pointer;">{{ b.name }}</label>
@@ -79,14 +80,22 @@
                                         <small class="d-block text-muted">{{ b.phone }}</small>
                                         {% endif %}
                                     </td>
+                                    <td>{{ b.get_beneficiary_type_display|default:"—" }}</td>
                                     <td>{{ b.scheme|default:"—" }}</td>
                                     <td>{{ b.village|default:"—" }}</td>
                                     <td class="text-center">{{ b.household_count }}</td>
-                                    <td class="text-end {% if b.total_outstanding > 0 %}text-danger fw-bold{% endif %}">{{ symbol }}{{ b.total_outstanding|floatformat:2 }}</td>
+                                    <td class="text-end">{{ symbol }}{{ b.credit_limit|floatformat:2 }}</td>
+                                    <td class="text-center">
+                                        {% if b.is_active %}
+                                        <span class="badge bg-success">Yes</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">No active beneficiaries found</td>
+                                    <td colspan="8" class="text-center text-muted py-4">No active beneficiaries found</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -95,10 +104,7 @@
                 </div>
                 <div class="card-footer bg-light d-flex justify-content-between align-items-center">
                     <small class="text-muted">Selected: <span id="selectedCount" class="fw-bold">0</span> beneficiaries</small>
-                    <div>
-                        <span class="text-muted me-3">Total: <strong>{{ symbol }}<span id="totalAmount">0.00</span></strong></span>
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="clearSelectionBtn">Clear Selection</button>
-                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="clearSelectionBtn">Clear Selection</button>
                 </div>
             </div>
         </div>
@@ -106,65 +112,66 @@
         <div class="col-md-4">
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
-                    <h6 class="mb-0"><i class="bi bi-cash"></i> Payment Details</h6>
+                    <h6 class="mb-0"><i class="bi bi-sliders"></i> Fields to Update</h6>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Payment Amount <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">{{ symbol }}</span>
-                            <input type="number" step="0.01" name="amount" id="payment_amount" class="form-control form-control-lg"
-                                   value="{{ amount|default:'' }}" min="0.01" placeholder="0.00" required>
-                        </div>
-                        <div class="form-text">Amount per beneficiary.</div>
-                    </div>
+                    <p class="text-muted small">Only fill fields you want to change. Leave blank to keep current value.</p>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
-                        <input type="date" name="payment_date" id="id_payment_date" class="form-control"
-                               value="{{ payment_date|default:today|date:'Y-m-d' }}" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Paid For</label>
-                        <select name="account" class="form-select" required>
-                            <option value="">-- Select Account --</option>
-                            {% for account in accounts %}
-                            <option value="{{ account.id }}" {% if account_id == account.id %}selected{% endif %}>{{ account.code }} - {{ account.name }}</option>
+                        <label class="form-label fw-semibold">Scheme</label>
+                        <select name="scheme" class="form-select">
+                            <option value="">— No Change —</option>
+                            {% for code, name in schemes %}
+                            <option value="{{ code }}">{{ name }}</option>
                             {% endfor %}
                         </select>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Payment Method</label>
-                        <select name="payment_method" class="form-select">
-                            <option value="cash" {% if payment_method == 'cash' %}selected{% endif %}>Cash</option>
-                            <option value="bank_transfer" {% if payment_method == 'bank_transfer' or not payment_method %}selected{% endif %}>Bank Transfer</option>
-                            <option value="mobile_money" {% if payment_method == 'mobile_money' %}selected{% endif %}>Mobile Money</option>
-                            <option value="other" {% if payment_method == 'other' %}selected{% endif %}>Other</option>
+                        <label class="form-label fw-semibold">Beneficiary Type</label>
+                        <select name="beneficiary_type" class="form-select">
+                            <option value="">— No Change —</option>
+                            {% for code, name in types %}
+                            <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Reference</label>
-                        <input type="text" name="reference" class="form-control" placeholder="Receipt/transaction ref..." value="{{ reference|default:'' }}">
+                        <label class="form-label fw-semibold">Village</label>
+                        <input type="text" name="village" class="form-control" placeholder="Leave blank to skip">
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Notes</label>
-                        <textarea name="notes" class="form-control" rows="2">{{ notes|default:"" }}</textarea>
+                        <label class="form-label fw-semibold">Household Count</label>
+                        <input type="number" name="household_count" class="form-control" min="0" placeholder="Leave blank to skip">
                     </div>
 
-                    <div class="alert alert-info py-2 px-3 mb-3">
-                        <small class="mb-0 d-block">
-                            <span id="selectedSummary">0</span> beneficiaries &times; {{ symbol }}<span id="amountSummary">0.00</span>
-                            = <strong>{{ symbol }}<span id="totalAmountSummary">0.00</span></strong>
-                        </small>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Credit Limit</label>
+                        <div class="input-group">
+                            <span class="input-group-text">{{ symbol }}</span>
+                            <input type="number" step="0.01" name="credit_limit" class="form-control" min="0" placeholder="Leave blank to skip">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Terms (days)</label>
+                        <input type="number" name="payment_terms" class="form-control" min="0" placeholder="Leave blank to skip">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Status</label>
+                        <select name="is_active" class="form-select">
+                            <option value="">— No Change —</option>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
                     </div>
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success btn-lg" id="submitBtn" disabled>
-                            <i class="bi bi-check-lg me-1"></i> Record Payments (<span id="paymentCount">0</span>)
+                            <i class="bi bi-check-lg me-1"></i> Update <span id="updateCount">0</span> Beneficiaries
                         </button>
                     </div>
                 </div>
@@ -180,10 +187,8 @@ function updateSelectedCount() {
     var checkboxes = document.querySelectorAll('.beneficiary-checkbox:checked');
     var count = checkboxes.length;
     document.getElementById('selectedCount').textContent = count;
-    document.getElementById('paymentCount').textContent = count;
-    document.getElementById('selectedSummary').textContent = count;
+    document.getElementById('updateCount').textContent = count;
     document.getElementById('submitBtn').disabled = count === 0;
-    updateSummary();
 }
 
 function filterBeneficiaries() {
@@ -204,15 +209,6 @@ function filterBeneficiaries() {
         row.style.display = (showScheme && showType && showHousehold && showSearch) ? '' : 'none';
     });
     updateSelectedCount();
-}
-
-function updateSummary() {
-    var count = document.querySelectorAll('.beneficiary-checkbox:checked').length;
-    var amount = parseFloat(document.getElementById('payment_amount').value) || 0;
-    var total = count * amount;
-    document.getElementById('amountSummary').textContent = amount.toFixed(2);
-    document.getElementById('totalAmount').textContent = total.toFixed(2);
-    document.getElementById('totalAmountSummary').textContent = total.toFixed(2);
 }
 
 document.getElementById('schemeFilter').addEventListener('change', filterBeneficiaries);
@@ -244,9 +240,6 @@ document.querySelectorAll('.beneficiary-checkbox').forEach(function(cb) {
     cb.addEventListener('change', updateSelectedCount);
 });
 
-document.getElementById('payment_amount').addEventListener('input', updateSummary);
-
-updateSummary();
 updateSelectedCount();
 </script>
 {% endblock %}

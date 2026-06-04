@@ -29,7 +29,7 @@ class LandingPageSettingsAdmin(admin.ModelAdmin):
             "fields": ("news_title", "news_subtitle", "news_intro")
         }),
         ("Meetings Section", {
-            "fields": ("meetings_title", "meetings_subtitle", "meeting_objectives")
+            "fields": ("meeting_objectives_title", "meeting_objectives_subtitle", "meeting_objectives_intro")
         }),
         ("Projects Section", {
             "fields": ("projects_title", "projects_subtitle", "projects_intro")
@@ -41,13 +41,13 @@ class LandingPageSettingsAdmin(admin.ModelAdmin):
             "fields": ("services_title", "services_subtitle")
         }),
         ("CTA Section", {
-            "fields": ("cta_title", "cta_description", "cta_button_text", "cta_gradient_start", "cta_gradient_end")
+            "fields": ("cta_title", "cta_description", "cta_gradient_start", "cta_gradient_end")
         }),
         ("Footer", {
             "fields": ("footer_text",)
         }),
         ("Appearance", {
-            "fields": ("primary_color", "secondary_color", "text_primary", "text_secondary", "section_bg_light", "section_bg_white")
+            "fields": ("primary_color", "secondary_color", "text_primary", "text_secondary", "section_bg_light")
         }),
     )
 

@@ -209,17 +209,17 @@ def dashboard(request):
     )
 
     total_clients = Beneficiary.objects.count()
-    private_beneficiaries_count = Beneficiary.objects.filter(beneficiary_type__iexact='private').count()
+    private_beneficiaries_count = Beneficiary.objects.filter(beneficiary_type__in=['private', 'town']).count()
     communal_beneficiaries_count = Beneficiary.objects.filter(beneficiary_type__iexact='communal').count()
     active_clients = Beneficiary.objects.filter(is_active=True).count()
     inactive_clients = Beneficiary.objects.filter(is_active=False).count()
     total_households = Beneficiary.objects.aggregate(total=Sum("household_count"))["total"] or 0
-    total_private_households = Beneficiary.objects.filter(beneficiary_type__iexact='private').aggregate(total=Sum("household_count"))["total"] or 0
+    total_private_households = Beneficiary.objects.filter(beneficiary_type__in=['private', 'town']).aggregate(total=Sum("household_count"))["total"] or 0
     total_communal_households = Beneficiary.objects.filter(beneficiary_type__iexact='communal').aggregate(total=Sum("household_count"))["total"] or 0
     
     scheme_data = []
     for scheme_code, scheme_name in Beneficiary.SCHEME_CHOICES:
-        priv_clients = Beneficiary.objects.filter(scheme=scheme_code, beneficiary_type__iexact='private')
+        priv_clients = Beneficiary.objects.filter(scheme=scheme_code, beneficiary_type__in=['private', 'town'])
         comm_clients = Beneficiary.objects.filter(scheme=scheme_code, beneficiary_type__iexact='communal')
         
         scheme_data.append({
@@ -847,6 +847,86 @@ def bulk_beneficiary_delete(request):
 
 
 @login_required
+def bulk_beneficiary_edit(request):
+    today = timezone.now().date()
+    beneficiaries = Beneficiary.objects.filter(is_active=True).order_by('scheme', 'name')
+    schemes = Beneficiary.SCHEME_CHOICES
+    types = Beneficiary.BENEFICIARY_TYPE_CHOICES
+
+    base_ctx = {
+        "beneficiaries": beneficiaries,
+        "schemes": schemes,
+        "types": types,
+        "today": today,
+        "symbol": '',
+    }
+    if hasattr(request.user, 'userprofile'):
+        base_ctx['symbol'] = request.user.userprofile.get_currency_symbol()
+
+    if request.method == "POST":
+        selected_ids = request.POST.getlist('selected_beneficiaries')
+
+        if not selected_ids:
+            messages.error(request, "Please select at least one beneficiary")
+            return render(request, "accounting_app/bulk_beneficiary_edit.html", base_ctx)
+
+        scheme = request.POST.get('scheme', '')
+        beneficiary_type = request.POST.get('beneficiary_type', '')
+        village = request.POST.get('village', '')
+        household_count = request.POST.get('household_count')
+        credit_limit = request.POST.get('credit_limit')
+        payment_terms = request.POST.get('payment_terms')
+        is_active = request.POST.get('is_active')
+
+        updated = 0
+        errors = []
+
+        for bid in selected_ids:
+            try:
+                b = Beneficiary.objects.get(pk=bid)
+                changed = False
+
+                if scheme and scheme != b.scheme:
+                    b.scheme = scheme
+                    changed = True
+                if beneficiary_type and beneficiary_type != b.beneficiary_type:
+                    b.beneficiary_type = beneficiary_type
+                    changed = True
+                if village and village != b.village:
+                    b.village = village
+                    changed = True
+                if household_count and int(household_count) != b.household_count:
+                    b.household_count = int(household_count)
+                    changed = True
+                if credit_limit and float(credit_limit) != b.credit_limit:
+                    b.credit_limit = float(credit_limit)
+                    changed = True
+                if payment_terms and int(payment_terms) != b.payment_terms:
+                    b.payment_terms = int(payment_terms)
+                    changed = True
+                if is_active:
+                    new_active = is_active == 'true'
+                    if new_active != b.is_active:
+                        b.is_active = new_active
+                        changed = True
+
+                if changed:
+                    b.save()
+                    updated += 1
+            except Exception as e:
+                errors.append(f"{b.name}: {str(e)}")
+
+        if updated:
+            messages.success(request, f"Successfully updated {updated} beneficiary(ies)")
+        if errors:
+            messages.warning(request, f"Failed to update {len(errors)} beneficiary(ies): {'; '.join(errors)}")
+
+        return redirect("beneficiary_list")
+
+    return render(request, "accounting_app/bulk_beneficiary_edit.html", base_ctx)
+
+
+@login_required
 def beneficiary_pdf_report(request, pk):
     beneficiary = get_object_or_404(Beneficiary, pk=pk)
     invoices = beneficiary.invoices.all().order_by('-issue_date')
@@ -1191,78 +1271,68 @@ def invoice_create(request):
 @login_required
 def bulk_invoice_create(request):
     today = timezone.now().date()
-    clients = Beneficiary.objects.filter(is_active=True).order_by('scheme', 'name')
+    beneficiaries = Beneficiary.objects.filter(is_active=True).order_by('scheme', 'name')
     
     schemes = Beneficiary.SCHEME_CHOICES
     
+    base_ctx = {
+        "beneficiaries": beneficiaries,
+        "schemes": schemes,
+        "today": today,
+        "symbol": '',
+    }
+    if hasattr(request.user, 'userprofile'):
+        base_ctx['symbol'] = request.user.userprofile.get_currency_symbol()
+    
     if request.method == "POST":
-        action = request.POST.get('action')
-        
-        household_count = int(request.POST.get('household_count', 0))
-        cost_per_unit = float(request.POST.get('cost_per_unit', 0))
+        amount = float(request.POST.get('amount', 0))
         issue_date = request.POST.get('issue_date')
         due_date = request.POST.get('due_date')
-        tax_rate = float(request.POST.get('tax_rate', 0))
-        discount = float(request.POST.get('discount', 0))
         notes = request.POST.get('notes', '')
         terms = request.POST.get('terms', '')
         
-        selected_clients = request.POST.getlist('selected_clients')
+        selected_ids = request.POST.getlist('selected_beneficiaries')
         
-        if not selected_clients:
+        post_ctx = {
+            **base_ctx,
+            "amount": amount,
+            "notes": notes,
+            "terms": terms,
+        }
+        
+        if not selected_ids:
             messages.error(request, "Please select at least one beneficiary")
-            return render(request, "accounting_app/bulk_invoice_form.html", {
-                "clients": clients,
-                "schemes": schemes,
-                "today": today,
-                "household_count": household_count,
-                "cost_per_unit": cost_per_unit,
-                "tax_rate": tax_rate,
-                "discount": discount,
-                "notes": notes,
-                "terms": terms,
-            })
+            return render(request, "accounting_app/bulk_invoice_form.html", post_ctx)
+        
+        if amount <= 0:
+            messages.error(request, "Please enter a valid amount greater than 0")
+            return render(request, "accounting_app/bulk_invoice_form.html", post_ctx)
         
         if not issue_date or not due_date:
             messages.error(request, "Please select issue date and due date")
-            return render(request, "accounting_app/bulk_invoice_form.html", {
-                "clients": clients,
-                "schemes": schemes,
-                "today": today,
-                "household_count": household_count,
-                "cost_per_unit": cost_per_unit,
-                "tax_rate": tax_rate,
-                "discount": discount,
-                "notes": notes,
-                "terms": terms,
-            })
+            return render(request, "accounting_app/bulk_invoice_form.html", post_ctx)
         
-        subtotal = household_count * cost_per_unit
-        tax_amount = subtotal * (tax_rate / 100)
-        total_amount = subtotal + tax_amount - discount
-        
-        # Generate bulk group ID
         bulk_group_id = f"BULK-{uuid.uuid4().hex[:12]}"
         
         created_invoices = []
         errors = []
         
-        for beneficiary_id in selected_clients:
+        for beneficiary_id in selected_ids:
             try:
                 client = Beneficiary.objects.get(pk=beneficiary_id)
                 invoice_number = generate_invoice_number()
                 
                 invoice = Invoice.objects.create(
                     invoice_number=invoice_number,
-                    beneficiary=beneficiary,
+                    beneficiary=client,
                     issue_date=issue_date,
                     due_date=due_date,
-                    household_count=household_count,
-                    cost_per_unit=cost_per_unit,
-                    tax_rate=tax_rate,
-                    tax_amount=tax_amount,
-                    discount=discount,
-                    total_amount=total_amount,
+                    household_count=client.household_count,
+                    cost_per_unit=amount,
+                    tax_rate=0,
+                    tax_amount=0,
+                    discount=0,
+                    total_amount=amount,
                     notes=notes,
                     terms=terms,
                     created_by=request.user,
@@ -1271,7 +1341,7 @@ def bulk_invoice_create(request):
                 )
                 created_invoices.append(invoice)
             except Exception as e:
-                errors.append(f"{beneficiary.name}: {str(e)}")
+                errors.append(f"{client.name}: {str(e)}")
         
         for inv in created_invoices:
             inv.beneficiary.recalculate_totals()
@@ -1283,11 +1353,7 @@ def bulk_invoice_create(request):
         
         return redirect("invoice_list")
     
-    return render(request, "accounting_app/bulk_invoice_form.html", {
-        "clients": clients,
-        "schemes": schemes,
-        "today": today,
-    })
+    return render(request, "accounting_app/bulk_invoice_form.html", base_ctx)
 
 
 @login_required
@@ -2722,6 +2788,101 @@ Generated: {timezone.now().strftime('%Y-%m-%d %H:%M')}
         return redirect("expense_reports")
     
     return redirect("expense_reports")
+
+
+@login_required
+def bulk_payment_create(request):
+    today = timezone.now().date()
+    beneficiaries = Beneficiary.objects.filter(is_active=True).order_by('scheme', 'name')
+    schemes = Beneficiary.SCHEME_CHOICES
+    accounts = Account.objects.filter(is_active=True, account_type='revenue').order_by('code')
+
+    base_ctx = {
+        "beneficiaries": beneficiaries,
+        "schemes": schemes,
+        "accounts": accounts,
+        "today": today,
+        "symbol": '',
+    }
+    if hasattr(request.user, 'userprofile'):
+        base_ctx['symbol'] = request.user.userprofile.get_currency_symbol()
+
+    if request.method == "POST":
+        amount = float(request.POST.get('amount', 0))
+        payment_date = request.POST.get('payment_date')
+        account_id = request.POST.get('account')
+        payment_method = request.POST.get('payment_method', 'bank_transfer')
+        reference = request.POST.get('reference', '')
+        notes = request.POST.get('notes', '')
+
+        selected_ids = request.POST.getlist('selected_beneficiaries')
+
+        post_ctx = {
+            **base_ctx,
+            "amount": amount,
+            "payment_date": payment_date,
+            "account_id": account_id,
+            "payment_method": payment_method,
+            "reference": reference,
+            "notes": notes,
+        }
+
+        if not selected_ids:
+            messages.error(request, "Please select at least one beneficiary")
+            return render(request, "accounting_app/bulk_payment_form.html", post_ctx)
+
+        if amount <= 0:
+            messages.error(request, "Please enter a valid amount greater than 0")
+            return render(request, "accounting_app/bulk_payment_form.html", post_ctx)
+
+        if not payment_date:
+            messages.error(request, "Please select a payment date")
+            return render(request, "accounting_app/bulk_payment_form.html", post_ctx)
+
+        account = None
+        if account_id:
+            try:
+                account = Account.objects.get(pk=account_id)
+            except Account.DoesNotExist:
+                pass
+
+        bulk_group_id = f"BULK-PAY-{uuid.uuid4().hex[:12]}"
+
+        created_payments = []
+        errors = []
+
+        for beneficiary_id in selected_ids:
+            try:
+                client = Beneficiary.objects.get(pk=beneficiary_id)
+
+                payment = Payment.objects.create(
+                    beneficiary=client,
+                    invoice=None,
+                    amount=amount,
+                    account=account,
+                    payment_date=payment_date,
+                    payment_method=payment_method,
+                    reference=reference,
+                    notes=notes,
+                    created_by=request.user,
+                    is_bulk=True,
+                    bulk_group_id=bulk_group_id,
+                )
+                created_payments.append(payment)
+            except Exception as e:
+                errors.append(f"{client.name}: {str(e)}")
+
+        for p in created_payments:
+            p.beneficiary.recalculate_totals()
+
+        if created_payments:
+            messages.success(request, f"Successfully recorded {len(created_payments)} payments")
+        if errors:
+            messages.warning(request, f"Failed to record {len(errors)} payments: {'; '.join(errors)}")
+
+        return redirect("payment_list")
+
+    return render(request, "accounting_app/bulk_payment_form.html", base_ctx)
 
 
 @login_required

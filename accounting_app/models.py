@@ -214,6 +214,7 @@ class Beneficiary(models.Model):
     BENEFICIARY_TYPE_CHOICES = [
         ("private", "Private"),
         ("communal", "Communal"),
+        ("town", "Town"),
     ]
     SCHEME_CHOICES = [
         ("Mangale", "Mangale"),
@@ -369,17 +370,14 @@ class Invoice(models.Model):
         self.beneficiary.recalculate_totals()
     
     def update_payment_status(self):
-        """Auto-update invoice status based on payments"""
         balance = self.balance()
-        if balance < 0:
-            self.status = 'paid'  # Has brought forward
-        elif balance == 0:
-            self.status = 'paid'  # No balance
+        if balance <= 0:
+            self.status = 'paid'
         else:
             amount_paid = self.total_paid()
             if amount_paid > 0:
-                self.status = 'partial'  # Has balance
-            models.Model.save(self, update_fields=['status'])
+                self.status = 'partial'
+        models.Model.save(self, update_fields=['status'])
 
     def amount_paid(self):
         return sum(payment.amount for payment in self.payments.all())

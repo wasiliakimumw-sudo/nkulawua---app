@@ -8,181 +8,144 @@
 </div>
 
 <div class="alert alert-info mb-4">
-    <i class="bi bi-info-circle"></i> 
-    <strong>Bulk Invoice Creation:</strong> Select beneficiaries and create invoices for all of them at once with the same billing details.
+    <i class="bi bi-info-circle"></i>
+    <strong>Bulk Invoice Creation:</strong> Select beneficiaries from the table, enter an amount, and create invoices for all selected beneficiaries at once.
 </div>
 
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h6 class="mb-0"><i class="bi bi-sliders"></i> Filter & Select Beneficiaries</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Filter by Scheme</label>
-                    <select id="schemeFilter" class="form-select">
-                        <option value="">All Schemes</option>
-                        {% for code, name in schemes %}
-                        <option value="{{ code }}">{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label">Filter by Households</label>
-                    <select id="householdFilter" class="form-select">
-                        <option value="">All Household Counts</option>
-                        <option value="1">1 Household</option>
-                        <option value="2">2 Households</option>
-                        <option value="3">3 Households</option>
-                        <option value="4">4 Households</option>
-                        <option value="5">5 Households</option>
-                        <option value="6">6 Households</option>
-                        <option value="7">7 Households</option>
-                        <option value="8">8 Households</option>
-                        <option value="9">9 Households</option>
-                        <option value="10">10 Households</option>
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label">Search Beneficiary</label>
-                    <input type="text" id="beneficiarySearch" class="form-control" placeholder="Search by name, phone, village...">
-                </div>
-                
-                <div class="form-check mb-2">
-                    <input type="checkbox" id="selectAllBeneficiaries" class="form-check-input">
-                    <label class="form-check-label fw-bold" for="selectAllBeneficiaries">Select All Visible</label>
-                </div>
-                
-                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; padding: 10px;">
-                    <div id="beneficiaryList">
-                        {% for beneficiary in beneficiaries %}
-                        <div class="form-check beneficiary-item" data-scheme="{{ beneficiary.scheme }}" data-households="{{ beneficiary.household_count }}">
-                            <input type="checkbox" name="selected_beneficiaries" value="{{ beneficiary.id }}" 
-                                   id="beneficiary_{{ beneficiary.id }}" class="form-check-input beneficiary-checkbox"
-                                   data-name="{{ beneficiary.name }}" data-households="{{ beneficiary.household_count }}">
-                            <label class="form-check-label" for="beneficiary_{{ beneficiary.id }}">
-                                {{ beneficiary.name }} <span class="text-muted">({{ beneficiary.household_count }} HH)</span>
-                                <small class="d-block text-muted">{{ beneficiary.scheme|default:"No scheme" }} - {{ beneficiary.village|default:"" }}</small>
-                            </label>
-                        </div>
-                        {% empty %}
-                        <p class="text-muted text-center">No active beneficiaries found</p>
-                        {% endfor %}
+<form method="post" id="bulkInvoiceForm">
+    {% csrf_token %}
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-people"></i> Select Beneficiaries</h6>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <input type="text" id="beneficiarySearch" class="form-control form-control-sm" placeholder="Search name, phone, village..." style="width: 170px;">
+                        <select id="schemeFilter" class="form-select form-select-sm" style="width: 110px;">
+                            <option value="">All Schemes</option>
+                            {% for code, name in schemes %}
+                            <option value="{{ code }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="typeFilter" class="form-select form-select-sm" style="width: 120px;">
+                            <option value="">All Types</option>
+                            <option value="private">Private</option>
+                            <option value="communal">Communal</option>
+                            <option value="town">Town</option>
+                        </select>
+                        <select id="householdFilter" class="form-select form-select-sm" style="width: 90px;">
+                            <option value="">HH</option>
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                        </select>
                     </div>
                 </div>
-                
-                <div class="mt-2 text-muted">
-                    <small>Selected: <span id="selectedCount">0</span> beneficiaries</small>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="selectAllBeneficiaries" class="form-check-input">
+                                    </th>
+                                    <th>Beneficiary</th>
+                                    <th>Scheme</th>
+                                    <th>Village</th>
+                                    <th style="width: 100px;">Households</th>
+                                    <th style="width: 100px;">Outstanding</th>
+                                </tr>
+                            </thead>
+                            <tbody id="beneficiaryTableBody">
+                                {% for b in beneficiaries %}
+                                <tr class="beneficiary-row" data-scheme="{{ b.scheme }}" data-type="{{ b.beneficiary_type }}" data-households="{{ b.household_count }}" data-search="{{ b.name|lower }} {{ b.phone|lower }} {{ b.village|lower }}">
+                                    <td>
+                                        <input type="checkbox" name="selected_beneficiaries" value="{{ b.id }}"
+                                               id="beneficiary_{{ b.id }}" class="form-check-input beneficiary-checkbox">
+                                    </td>
+                                    <td>
+                                        <label for="beneficiary_{{ b.id }}" class="fw-semibold" style="cursor: pointer;">{{ b.name }}</label>
+                                        {% if b.phone %}
+                                        <small class="d-block text-muted">{{ b.phone }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ b.scheme|default:"—" }}</td>
+                                    <td>{{ b.village|default:"—" }}</td>
+                                    <td class="text-center">{{ b.household_count }}</td>
+                                    <td class="text-end">{{ symbol }}{{ b.total_outstanding|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">No active beneficiaries found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Selected: <span id="selectedCount" class="fw-bold">0</span> beneficiaries</small>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="clearSelectionBtn">Clear Selection</button>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="bi bi-file-earmark-text"></i> Billing Details</h6>
-            </div>
-            <div class="card-body">
-                <form method="post" id="bulkInvoiceForm">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="create">
-                    
-                    <table class="table table-bordered">
-                        <tbody>
-                            <tr>
-                                <th style="width: 25%; background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Issue Date *</label>
-                                </th>
-                                <td style="width: 75%;">
-                                    <input type="date" name="issue_date" id="id_issue_date" class="form-control" 
-                                           value="{{ today|date:'Y-m-d' }}" required>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Due Date *</label>
-                                </th>
-                                <td>
-                                    <input type="date" name="due_date" id="id_due_date" class="form-control" required>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Households *</label>
-                                </th>
-                                <td>
-                                    <input type="number" name="household_count" id="household_count" class="form-control" 
-                                           value="{{ household_count|default:0 }}" min="1" required>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Cost per Household *</label>
-                                </th>
-                                <td>
-                                    <input type="number" step="0.01" name="cost_per_unit" id="cost_per_unit" class="form-control" 
-                                           value="{{ cost_per_unit|default:0 }}" min="0" required>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Tax Rate (%)</label>
-                                </th>
-                                <td>
-                                    <input type="number" step="0.01" name="tax_rate" id="id_tax_rate" class="form-control" 
-                                           value="{{ tax_rate|default:0 }}" min="0" max="100">
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Discount</label>
-                                </th>
-                                <td>
-                                    <input type="number" step="0.01" name="discount" id="id_discount" class="form-control" 
-                                           value="{{ discount|default:0 }}" min="0">
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Notes</label>
-                                </th>
-                                <td>
-                                    <textarea name="notes" class="form-control" rows="2">{{ notes|default:"" }}</textarea>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Terms</label>
-                                </th>
-                                <td>
-                                    <textarea name="terms" class="form-control" rows="2">{{ terms|default:"" }}</textarea>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th style="background-color: #f8f9fa;">
-                                    <label class="form-label mb-0">Total Amount</label>
-                                </th>
-                                <td>
-                                    <input type="text" id="total_amount_display" class="form-control fw-bold" readonly>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div class="d-flex justify-content-end gap-2">
-                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-receipt"></i> Invoice Details</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">{{ symbol }}</span>
+                            <input type="number" step="0.01" name="amount" id="id_amount" class="form-control form-control-lg"
+                                   value="{{ amount|default:'' }}" min="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="form-text">This amount will be applied to each selected beneficiary.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Issue Date <span class="text-danger">*</span></label>
+                        <input type="date" name="issue_date" id="id_issue_date" class="form-control"
+                               value="{{ today|date:'Y-m-d' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Due Date <span class="text-danger">*</span></label>
+                        <input type="date" name="due_date" id="id_due_date" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2">{{ notes|default:"" }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Terms</label>
+                        <textarea name="terms" class="form-control" rows="2">{{ terms|default:"" }}</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg" id="submitBtn" disabled>
                             <i class="bi bi-check-lg me-1"></i> Create Invoices (<span id="invoiceCount">0</span>)
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
+</form>
 {% endblock %}
 
 {% block extra_js %}
@@ -195,65 +158,55 @@ function updateSelectedCount() {
     document.getElementById('submitBtn').disabled = count === 0;
 }
 
-function selectAllBeneficiariesFunc() {
-    var master = document.getElementById('selectAllBeneficiaries');
-    var checkboxes = document.querySelectorAll('.beneficiary-checkbox');
-    checkboxes.forEach(cb => {
-        if (cb.offsetParent !== null) {
-            cb.checked = master.checked;
-        }
-    });
-    updateSelectedCount();
-}
-
 function filterBeneficiaries() {
     var schemeFilter = document.getElementById('schemeFilter').value;
+    var typeFilter = document.getElementById('typeFilter').value;
     var householdFilter = document.getElementById('householdFilter').value;
     var searchText = document.getElementById('beneficiarySearch').value.toLowerCase();
-    
-    var items = document.querySelectorAll('.beneficiary-item');
-    items.forEach(item => {
-        var scheme = item.dataset.scheme || '';
-        var households = item.dataset.households || '';
-        var name = item.querySelector('label').textContent.toLowerCase();
-        
+    var rows = document.querySelectorAll('.beneficiary-row');
+    rows.forEach(function(row) {
+        var scheme = row.dataset.scheme || '';
+        var btype = row.dataset.type || '';
+        var households = parseInt(row.dataset.households) || 0;
+        var search = row.dataset.search || '';
         var showScheme = !schemeFilter || scheme === schemeFilter;
-        var showHousehold = !householdFilter || households === householdFilter;
-        var showSearch = !searchText || name.includes(searchText);
-        
-        item.style.display = (showScheme && showHousehold && showSearch) ? '' : 'none';
+        var showType = !typeFilter || btype === typeFilter;
+        var showHousehold = !householdFilter || households === parseInt(householdFilter);
+        var showSearch = !searchText || search.includes(searchText);
+        row.style.display = (showScheme && showType && showHousehold && showSearch) ? '' : 'none';
     });
-    
     updateSelectedCount();
-}
-
-function calculateTotal() {
-    var households = parseFloat(document.getElementById('household_count').value) || 0;
-    var costPerUnit = parseFloat(document.getElementById('cost_per_unit').value) || 0;
-    var taxRate = parseFloat(document.getElementById('id_tax_rate').value) || 0;
-    var discount = parseFloat(document.getElementById('id_discount').value) || 0;
-    
-    var subtotal = households * costPerUnit;
-    var taxAmount = subtotal * (taxRate / 100);
-    var totalAmount = subtotal + taxAmount - discount;
-    
-    document.getElementById('total_amount_display').value = '{{ symbol }}' + totalAmount.toFixed(2);
 }
 
 document.getElementById('schemeFilter').addEventListener('change', filterBeneficiaries);
+document.getElementById('typeFilter').addEventListener('change', filterBeneficiaries);
 document.getElementById('householdFilter').addEventListener('change', filterBeneficiaries);
 document.getElementById('beneficiarySearch').addEventListener('input', filterBeneficiaries);
-document.getElementById('selectAllBeneficiaries').addEventListener('change', selectAllBeneficiariesFunc);
-document.getElementById('household_count').addEventListener('input', calculateTotal);
-document.getElementById('cost_per_unit').addEventListener('input', calculateTotal);
-document.getElementById('id_tax_rate').addEventListener('input', calculateTotal);
-document.getElementById('id_discount').addEventListener('input', calculateTotal);
 
-document.querySelectorAll('.beneficiary-checkbox').forEach(cb => {
+document.getElementById('selectAllBeneficiaries').addEventListener('change', function() {
+    var master = this;
+    var rows = document.querySelectorAll('.beneficiary-row');
+    rows.forEach(function(row) {
+        if (row.style.display !== 'none') {
+            var cb = row.querySelector('.beneficiary-checkbox');
+            if (cb) cb.checked = master.checked;
+        }
+    });
+    updateSelectedCount();
+});
+
+document.getElementById('clearSelectionBtn').addEventListener('click', function() {
+    document.querySelectorAll('.beneficiary-checkbox').forEach(function(cb) {
+        cb.checked = false;
+    });
+    document.getElementById('selectAllBeneficiaries').checked = false;
+    updateSelectedCount();
+});
+
+document.querySelectorAll('.beneficiary-checkbox').forEach(function(cb) {
     cb.addEventListener('change', updateSelectedCount);
 });
 
-calculateTotal();
 updateSelectedCount();
 </script>
 {% endblock %}

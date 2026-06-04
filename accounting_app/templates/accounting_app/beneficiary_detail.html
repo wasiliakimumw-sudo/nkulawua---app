@@ -33,6 +33,8 @@
                             <div class="mt-2">
                                 {% if beneficiary.beneficiary_type == 'private' %}
                                 <span class="badge bg-primary rounded-pill px-3">Private</span>
+                                {% elif beneficiary.beneficiary_type == 'town' %}
+                                <span class="badge bg-warning text-dark rounded-pill px-3">Town</span>
                                 {% else %}
                                 <span class="badge bg-info rounded-pill px-3">Communal</span>
                                 {% endif %}

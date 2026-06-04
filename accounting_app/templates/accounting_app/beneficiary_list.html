@@ -7,6 +7,7 @@
     <div>
         <a href="{% url 'beneficiary_create' %}" class="btn btn-primary"><i class="bi bi-plus"></i> Add Beneficiary</a>
         <a href="{% url 'bulk_beneficiary_create' %}" class="btn btn-info"><i class="bi bi-people"></i> Bulk Create</a>
+        <a href="{% url 'bulk_beneficiary_edit' %}" class="btn btn-secondary"><i class="bi bi-pencil-square"></i> Bulk Edit</a>
         <a href="{% url 'bulk_beneficiary_import' %}" class="btn btn-warning"><i class="bi bi-file-earmark-arrow-up"></i> Import Excel</a>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#whatsappModal">
             <i class="bi bi-whatsapp"></i> Send WhatsApp
@@ -160,6 +161,7 @@ function sendWhatsApp() {
                     <option value="">All Types</option>
                     <option value="private" {% if beneficiary_type_filter == 'private' %}selected{% endif %}>Private</option>
                     <option value="communal" {% if beneficiary_type_filter == 'communal' %}selected{% endif %}>Communal</option>
+                    <option value="town" {% if beneficiary_type_filter == 'town' %}selected{% endif %}>Town</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -227,6 +229,8 @@ function sendWhatsApp() {
                         <td class="text-center">
                             {% if beneficiary.beneficiary_type == 'private' %}
                             <span class="badge bg-primary">P</span>
+                            {% elif beneficiary.beneficiary_type == 'town' %}
+                            <span class="badge bg-warning text-dark">T</span>
                             {% else %}
                             <span class="badge bg-info">C</span>
                             {% endif %}

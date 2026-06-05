@@ -81,17 +81,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'accounting_project.wsgi.application'
 
 # DATABASE
-if os.getenv('DATABASE_URL'):
-    DATABASES = {
-        'default': dj_database_url.parse(os.getenv('DATABASE_URL'))
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+DATABASES = {
+    "default": dj_database_url.config(
+        default="sqlite:///db.sqlite3"
+    )
+}
 
 # PASSWORD VALIDATION
 AUTH_PASSWORD_VALIDATORS = [

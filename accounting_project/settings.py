@@ -17,6 +17,7 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = [
     'nkula-wua.onrender.com',
+    '.onrender.com',
 ] + [
     host.strip()
     for host in os.getenv('ALLOWED_HOSTS', '').split(',')

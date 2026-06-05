@@ -1,3 +1,4 @@
+import os
 from django.apps import AppConfig
 
 
@@ -6,4 +7,5 @@ class AccountingAppConfig(AppConfig):
     name = "accounting_app"
 
     def ready(self):
-        import accounting_app.signals
+        if os.environ.get('SKIP_SIGNALS') != '1':
+            import accounting_app.signals

@@ -1195,17 +1195,20 @@ class DeletedRecord(models.Model):
         
         data = json.loads(self.data)
         
-        related_fields = []
-        for field in model._meta.get_fields():
-            if field.is_relation and hasattr(field, 'to'):
-                related_fields.append(field.name)
-        
-        for field in related_fields:
-            if field in data:
-                del data[field]
+        fk_map = {}
+        for field in model._meta.fields:
+            if field.is_relation and field.many_to_one:
+                fk_map[field.name] = field.attname
+
+        prepared = {}
+        for key, value in data.items():
+            if key in fk_map:
+                prepared[fk_map[key]] = value
+            else:
+                prepared[key] = value
         
         try:
-            obj = model.objects.create(**data)
+            obj = model.objects.create(**prepared)
             self.recovered = True
             self.recovered_at = timezone.now()
             self.save(update_fields=['recovered', 'recovered_at'])

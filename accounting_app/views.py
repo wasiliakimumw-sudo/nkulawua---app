@@ -52,7 +52,7 @@ def save_deleted_record(obj, user):
             value = value.isoformat()
         elif hasattr(value, 'pk'):
             value = value.pk
-        data[field.name] = value
+        data[field.attname if field.is_relation and field.many_to_one else field.name] = value
     
     DeletedRecord.objects.create(
         model_name=model_name,
@@ -63,8 +63,6 @@ def save_deleted_record(obj, user):
 
 
 def landing_page(request):
-    if request.user.is_authenticated:
-        return redirect("dashboard")
     gallery_images = GalleryImage.objects.filter(is_active=True)[:12]
     services = Service.objects.filter(is_active=True)
     landing_settings = LandingPageSettings.objects.filter(is_active=True).first()
@@ -114,14 +112,13 @@ def generate_expense_number():
 
 
 def login_view(request):
-    if request.user.is_authenticated:
-        return redirect("dashboard")
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
+            request.session.save()
             
             x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
             ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
@@ -3883,15 +3880,20 @@ def budget_delete(request, pk):
     return render(request, "accounting_app/budget_confirm_delete.html", {"budget": budget})
 
 
+@login_required
 def register(request):
+    if not _is_super_admin(request.user):
+        messages.error(request, "Access denied. Admin access required.")
+        return redirect('dashboard')
     if request.method == "POST":
         form = UserForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
             user.set_password(form.cleaned_data["password"])
             user.save()
-            messages.success(request, "Account created successfully")
-            return redirect("login")
+            UserProfile.objects.get_or_create(user=user, defaults={"role": "viewer"})
+            messages.success(request, "Account created successfully.")
+            return redirect("user_list")
     else:
         form = UserForm()
     return render(request, "accounting_app/register.html", {"form": form})
@@ -4216,11 +4218,10 @@ def login_sessions(request):
 
 
 @login_required
+@login_required
 def data_recovery(request):
-    if not hasattr(request.user, 'userprofile'):
-        user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if not (request.user.userprofile.role == "admin" or request.user.userprofile.can_manage_users):
-        messages.error(request, "You don't have permission to access data recovery.")
+    if not _is_super_admin(request.user):
+        messages.error(request, "Access denied. Admin access required.")
         return redirect('dashboard')
     
     deleted_records = DeletedRecord.objects.all()
@@ -4338,7 +4339,7 @@ def data_recovery(request):
                                     for record in records:
                                         record.pop(pk_field, None)
                                         try:
-                                            obj = model_class(**record)
+                                            obj = model_class(**_prepare_record_for_model(model_class, record))
                                             obj.save()
                                             created += 1
                                         except Exception:
@@ -4361,7 +4362,7 @@ def data_recovery(request):
                                         else:
                                             record.pop(pk_field, None)
                                             try:
-                                                obj = model_class(**record)
+                                                obj = model_class(**_prepare_record_for_model(model_class, record))
                                                 obj.save()
                                                 created += 1
                                             except Exception:
@@ -4375,7 +4376,7 @@ def data_recovery(request):
                                         else:
                                             record.pop(pk_field, None)
                                             try:
-                                                obj = model_class(**record)
+                                                obj = model_class(**_prepare_record_for_model(model_class, record))
                                                 obj.save()
                                                 created += 1
                                             except Exception:
@@ -6748,6 +6749,24 @@ def _serialize_model(model_class):
     return data
 
 
+def _prepare_record_for_model(model_class, record):
+    """Convert FK field names (e.g. 'user') to column names ('user_id') for direct model construction.
+    Handles both raw keys like 'user' and already-correct keys like 'user_id'.
+    """
+    fk_map = {}
+    for field in model_class._meta.fields:
+        if field.is_relation and field.many_to_one:
+            fk_map[field.name] = field.attname
+
+    prepared = {}
+    for key, value in record.items():
+        if key in fk_map:
+            prepared[fk_map[key]] = value
+        else:
+            prepared[key] = value
+    return prepared
+
+
 def _identify_record(model_class, record):
     pk_field = model_class._meta.pk.name
     pk_value = record.get(pk_field)
@@ -6946,7 +6965,7 @@ def data_migration(request):
                                         pk_fields = [f for f in model_class._meta.fields if f.primary_key]
                                         if pk_fields:
                                             record.pop(pk_field, None)
-                                        obj = model_class(**record)
+                                        obj = model_class(**_prepare_record_for_model(model_class, record))
                                         obj.save()
                                         created += 1
 
@@ -6965,7 +6984,7 @@ def data_migration(request):
                                                 skipped += 1
                                         else:
                                             record.pop(pk_field, None)
-                                            obj = model_class(**record)
+                                            obj = model_class(**_prepare_record_for_model(model_class, record))
                                             obj.save()
                                             created += 1
 
@@ -6975,7 +6994,7 @@ def data_migration(request):
                                             skipped += 1
                                         else:
                                             record.pop(pk_field, None)
-                                            obj = model_class(**record)
+                                            obj = model_class(**_prepare_record_for_model(model_class, record))
                                             obj.save()
                                             created += 1
 
